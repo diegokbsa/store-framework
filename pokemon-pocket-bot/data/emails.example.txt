@@ -1,0 +1,4 @@
+# Um e-mail por linha. Opcional: email:senha
+conta001@gmail.com
+conta002@gmail.com:SenhaForte123
+meu.email+0001@gmail.com

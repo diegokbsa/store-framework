@@ -1,0 +1,15 @@
+# Opcional: lista fixa de dispositivos. Se omitido, o bot descobre sozinho.
+devices:
+  - serial: 127.0.0.1:7555     # MuMu Player instância 1
+    name: mumu-1
+    enabled: true
+  - serial: 127.0.0.1:5555     # LDPlayer instância 1
+    name: ld-1
+    enabled: true
+  - serial: 127.0.0.1:5557     # LDPlayer instância 2
+    name: ld-2
+    enabled: true
+  - serial: 192.168.0.42:5555  # celular físico via ADB Wi-Fi
+    name: galaxy
+    enabled: false
+    scale: 1.0

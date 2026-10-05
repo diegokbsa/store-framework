@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PTCGP Bot</title>
+<style>
+  :root { --bg:#0f1117; --card:#171a23; --fg:#e6e6e6; --muted:#8b93a7; --acc:#f5c518; --ok:#3ddc84; --bad:#ff5c5c; }
+  body { margin:0; font-family: system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+  header { padding:16px 24px; border-bottom:1px solid #222; display:flex; align-items:center; gap:16px; }
+  header h1 { margin:0; font-size:20px; color:var(--acc); }
+  main { padding:16px 24px; display:grid; gap:16px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+  .card { background:var(--card); border-radius:10px; padding:16px; }
+  .card h2 { margin:0 0 12px; font-size:16px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+  .kpis { display:grid; grid-template-columns: repeat(auto-fit, minmax(110px,1fr)); gap:8px; }
+  .kpi { background:#1f2330; border-radius:8px; padding:10px; }
+  .kpi b { display:block; font-size:22px; }
+  .kpi span { color:var(--muted); font-size:12px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid #262a36; }
+  th { color:var(--muted); font-weight:500; }
+  .status-running { color:var(--ok); } .status-stopped,.status-idle { color:var(--muted); }
+  .status-reconnecting { color:var(--acc); }
+  .st-available{color:var(--ok)} .st-assigned{color:var(--acc)} .st-used{color:#7aa2f7} .st-verified{color:#9ece6a} .st-failed{color:var(--bad)}
+  button, input[type=submit] { background:var(--acc); color:#111; border:0; border-radius:6px; padding:8px 12px; font-weight:600; cursor:pointer; }
+  button.secondary { background:#2a2f3f; color:var(--fg); }
+  button.danger { background:var(--bad); color:#fff; }
+  input[type=text], input[type=number], textarea, select { width:100%; box-sizing:border-box; background:#0f1117; color:var(--fg); border:1px solid #2a2f3f; border-radius:6px; padding:8px; }
+  textarea { min-height:90px; font-family:monospace; }
+  form.inline { display:flex; gap:8px; align-items:center; }
+  .wide { grid-column: 1 / -1; }
+  .msg { background:#1f2330; padding:8px 12px; border-radius:6px; color:var(--acc); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚡ PTCGP Bot</h1>
+  <span>modo <b>{{ snap.mode }}</b> · set <b>{{ snap.pack_set }}</b></span>
+  <span style="margin-left:auto" class="row">
+    <form method="post" action="/api/start"><button {% if snap.running %}disabled{% endif %}>▶ Iniciar</button></form>
+    <form method="post" action="/api/stop"><button class="danger" {% if not snap.running %}disabled{% endif %}>■ Parar</button></form>
+    <form method="post" action="/api/devices/scan"><button class="secondary">🔍 Re-escanear</button></form>
+  </span>
+</header>
+<main>
+  {% if request.query_params.get('msg') %}<div class="msg wide">{{ request.query_params.get('msg') }}</div>{% endif %}
+
+  <section class="card wide">
+    <h2>Resumo</h2>
+    <div class="kpis">
+      <div class="kpi"><b>{{ snap.totals.devices }}</b><span>dispositivos ({{ snap.totals.running }} rodando)</span></div>
+      <div class="kpi"><b>{{ snap.totals.accounts }}</b><span>contas</span></div>
+      <div class="kpi"><b>{{ snap.totals.packs }}</b><span>pacotes</span></div>
+      <div class="kpi"><b>{{ snap.totals.god_packs }}</b><span>god packs ({{ snap.totals.god_pack_rate }}%)</span></div>
+      <div class="kpi"><b>{{ snap.totals.hits }}</b><span>contas salvas</span></div>
+      <div class="kpi"><b>{{ snap.totals.packs_per_hour }}</b><span>pacotes/hora</span></div>
+      <div class="kpi"><b>{{ snap.totals.errors }}</b><span>erros</span></div>
+    </div>
+  </section>
+
+  <section class="card wide">
+    <h2>Dispositivos</h2>
+    <table>
+      <tr><th>Nome</th><th>Serial</th><th>Status</th><th>Contas</th><th>Pacotes</th><th>God</th><th>Salvas</th><th>Ciclo médio</th><th>Pacotes/h</th><th>Último resultado</th><th>Último erro</th></tr>
+      {% for d in snap.devices %}
+      <tr>
+        <td>{{ d.name }}</td><td><code>{{ d.serial }}</code></td>
+        <td class="status-{{ d.status }}">{{ d.status }}</td>
+        <td>{{ d.accounts }}</td><td>{{ d.packs }}</td><td>{{ d.god_packs }}</td><td>{{ d.hits }}</td>
+        <td>{{ d.avg_cycle_s }}s</td><td>{{ d.packs_per_hour }}</td>
+        <td>{{ d.last_result }}</td><td style="color:var(--bad)">{{ d.last_error }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="11" style="color:var(--muted)">Nenhum dispositivo. Abra os emuladores e clique em Re-escanear, ou conecte manualmente abaixo.</td></tr>
+      {% endfor %}
+    </table>
+    <form class="inline" method="post" action="/api/devices/connect" style="margin-top:12px">
+      <input type="text" name="address" placeholder="host:porta (ex.: 127.0.0.1:7555 ou 192.168.0.42:5555)" required>
+      <input type="text" name="name" placeholder="apelido (opcional)" style="max-width:180px">
+      <button>Conectar ADB</button>
+    </form>
+  </section>
+
+  <section class="card" id="emails">
+    <h2>Cadastrar e-mails</h2>
+    <form method="post" action="/api/emails/add">
+      <textarea name="emails" placeholder="um por linha (ou email:senha)&#10;conta1@gmail.com&#10;conta2@outlook.com:senha"></textarea>
+      <div class="row" style="margin-top:8px"><button>Adicionar</button></div>
+    </form>
+    <form method="post" action="/api/emails/upload" enctype="multipart/form-data" class="inline" style="margin-top:12px">
+      <input type="file" name="file" accept=".txt,.csv" required>
+      <button class="secondary">Importar arquivo</button>
+    </form>
+    <form method="post" action="/api/emails/aliases" style="margin-top:12px">
+      <div class="row">
+        <input type="text" name="base" placeholder="e-mail base para aliases + (ex.: eu@gmail.com)" required style="flex:2">
+        <input type="number" name="count" value="50" min="1" style="max-width:90px">
+        <input type="number" name="start" value="1" min="0" style="max-width:90px">
+        <button class="secondary">Gerar aliases</button>
+      </div>
+    </form>
+    <form method="post" action="/api/emails/release" style="margin-top:12px"><button class="secondary">Liberar reservados</button></form>
+  </section>
+
+  <section class="card">
+    <h2>E-mails ({{ snap.emails.total }})</h2>
+    <div class="kpis" style="margin-bottom:12px">
+      {% for s in statuses %}<div class="kpi"><b class="st-{{ s }}">{{ snap.emails[s] }}</b><span>{{ s }}</span></div>{% endfor %}
+    </div>
+    <div style="max-height:360px; overflow:auto">
+    <table>
+      <tr><th>E-mail</th><th>Status</th><th>Device</th><th></th></tr>
+      {% for e in emails %}
+      <tr>
+        <td>{{ e.email }}</td>
+        <td class="st-{{ e.status.value }}">{{ e.status.value }}</td>
+        <td>{{ e.device or '-' }}</td>
+        <td class="row">
+          <form method="post" action="/api/emails/{{ e.email }}/status" class="inline">
+            <select name="status" onchange="this.form.submit()">
+              {% for s in statuses %}<option value="{{ s }}" {% if s == e.status.value %}selected{% endif %}>{{ s }}</option>{% endfor %}
+            </select>
+          </form>
+          <form method="post" action="/api/emails/{{ e.email }}/delete"><button class="danger" title="remover">✕</button></form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    </div>
+  </section>
+
+  <section class="card wide">
+    <h2>Verificações recentes</h2>
+    <table>
+      <tr><th>E-mail</th><th>Código</th><th>OK</th><th>Detalhe</th></tr>
+      {% for h in history %}
+      <tr><td>{{ h.email }}</td><td>{{ h.code or '-' }}</td><td>{{ 'sim' if h.ok else 'não' }}</td><td>{{ h.detail }}</td></tr>
+      {% else %}
+      <tr><td colspan="4" style="color:var(--muted)">Nenhuma verificação ainda. Use <code>ptcgp-bot emails verify EMAIL</code>.</td></tr>
+      {% endfor %}
+    </table>
+  </section>
+</main>
+<script>setTimeout(() => location.reload(), 15000);</script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+# Copie para config/settings.yaml e ajuste.
+adb:
+  binary: adb                # caminho do adb (ex.: C:/platform-tools/adb.exe)
+  auto_discover: true        # varre portas conhecidas de MuMu, LDPlayer, BlueStacks, Nox, Memu
+  extra_ports: []            # ex.: [5585, 5587]
+  remote_hosts: []           # ex.: ["192.168.0.50:5555", "192.168.0.51"]
+  fast_screencap: true
+
+reroll:
+  mode: godpack              # godpack | tradeable | any
+  min_rare_cards: 5
+  pack_set: auto             # A1, A1a, A2, A2a, A2b, A3 ... ou auto
+  packs_per_account: 2
+  fast_reset: true           # usa `pm clear` em vez de excluir a conta pelo menu
+  skip_animations: true
+  poll_min: 0.15
+  poll_max: 1.2
+  screen_timeout: 45
+  max_consecutive_failures: 3
+  backup_accounts: true
+  save_screenshots: true
+  match_threshold: 0.86
+
+email:
+  plus_alias_base: null      # ex.: meuemail@gmail.com -> gera meuemail+0001@gmail.com
+  imap_host: null            # ex.: imap.gmail.com
+  imap_port: 993
+  imap_user: null
+  imap_password: null        # prefira a env PTCGP_EMAIL__IMAP_PASSWORD
+  sender_filter: pokemon
+  wait_timeout: 180
+  poll_interval: 5
+
+notify:
+  discord_webhook: null
+  notify_on_godpack: true
+  notify_on_error: true
+
+dashboard:
+  enabled: true
+  host: 127.0.0.1
+  port: 8787
+
+max_parallel_devices: 0      # 0 = todos os dispositivos conectados
+log_level: INFO
