@@ -35,12 +35,42 @@ class Match:
         return self.x, self.y
 
 
+# Desvio padrão mínimo para o template ser considerado "texturizado". Abaixo disso o
+# TM_CCOEFF_NORMED do OpenCV degenera (retorna 1.0 em qualquer lugar), então usamos SQDIFF.
+FLAT_STD_THRESHOLD = 2.0
+
+
 @dataclass
 class _Template:
     name: str
     image: np.ndarray
     mask: np.ndarray | None
     roi: tuple[int, int, int, int] | None  # x, y, w, h
+    flat: bool = False
+
+
+def _is_flat(image: np.ndarray) -> bool:
+    """Template é 'liso' quando cada canal, isoladamente, não tem textura.
+
+    Um botão vermelho sólido tem variância alta entre canais mas zero dentro de cada canal, e é
+    exatamente esse caso em que o OpenCV devolve 1.0 em janelas lisas do screenshot.
+    """
+    img = image.astype(np.float32)
+    if img.ndim == 2:
+        return float(img.std()) < FLAT_STD_THRESHOLD
+    return max(float(img[:, :, c].std()) for c in range(img.shape[2])) < FLAT_STD_THRESHOLD
+
+
+def _match(haystack: np.ndarray, tpl: "_Template") -> np.ndarray:
+    """Mapa de similaridade em [0, 1] (quanto maior, melhor), robusto a templates lisos."""
+    if tpl.mask is not None:
+        res = cv2.matchTemplate(haystack, tpl.image, cv2.TM_CCORR_NORMED, mask=tpl.mask)
+    elif tpl.flat:
+        res = cv2.matchTemplate(haystack, tpl.image, cv2.TM_SQDIFF_NORMED)
+        res = 1.0 - res
+    else:
+        res = cv2.matchTemplate(haystack, tpl.image, cv2.TM_CCOEFF_NORMED)
+    return np.nan_to_num(res, nan=0.0, posinf=0.0, neginf=0.0)
 
 
 class TemplateMatcher:
@@ -77,7 +107,10 @@ class TemplateMatcher:
             raw = raw[:, :, :3]
         elif raw.ndim == 2:
             raw = cv2.cvtColor(raw, cv2.COLOR_GRAY2BGR)
-        tpl = _Template(name=name, image=raw, mask=mask, roi=self._rois.get(name))
+        tpl = _Template(name=name, image=raw, mask=mask, roi=self._rois.get(name),
+                        flat=_is_flat(raw))
+        if tpl.flat:
+            log.warning("template '%s' é quase uma cor sólida; matching menos confiável", name)
         self._cache[name] = tpl
         return tpl
 
@@ -86,7 +119,8 @@ class TemplateMatcher:
         """Registra um template vindo de memória (útil em testes/captura)."""
         if image.ndim == 2:
             image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-        self._cache[name] = _Template(name=name, image=image[:, :, :3].copy(), mask=None, roi=roi)
+        img = image[:, :, :3].copy()
+        self._cache[name] = _Template(name=name, image=img, mask=None, roi=roi, flat=_is_flat(img))
 
     # ---------- busca ----------
     def find(self, screen: np.ndarray, name: str, threshold: float | None = None,
@@ -104,12 +138,7 @@ class TemplateMatcher:
         th, tw = tpl.image.shape[:2]
         if haystack.shape[0] < th or haystack.shape[1] < tw:
             return None
-        method = cv2.TM_CCOEFF_NORMED
-        if tpl.mask is not None:
-            res = cv2.matchTemplate(haystack, tpl.image, cv2.TM_CCORR_NORMED, mask=tpl.mask)
-        else:
-            res = cv2.matchTemplate(haystack, tpl.image, method)
-        res = np.nan_to_num(res, nan=0.0, posinf=0.0, neginf=0.0)
+        res = _match(haystack, tpl)
         _, max_val, _, max_loc = cv2.minMaxLoc(res)
         if max_val < thr:
             return None
@@ -125,8 +154,7 @@ class TemplateMatcher:
         th, tw = tpl.image.shape[:2]
         if screen.shape[0] < th or screen.shape[1] < tw:
             return []
-        res = cv2.matchTemplate(screen, tpl.image, cv2.TM_CCOEFF_NORMED)
-        res = np.nan_to_num(res, nan=0.0)
+        res = _match(screen, tpl)
         matches: list[Match] = []
         work = res.copy()
         for _ in range(max_results):
